@@ -20,7 +20,7 @@ def tracker_page():
 
     async def load_data():
         try:
-            async with httpx.AsyncClient(base_url='http://127.0.0.1:8000') as client:
+            async with httpx.AsyncClient(base_url='http://localhost:8000') as client:
                 latest_resp = await client.get(f'/devices/{device_id}/location/latest')
                 history_resp = await client.get(f'/devices/{device_id}/location/history?limit=100')
 
