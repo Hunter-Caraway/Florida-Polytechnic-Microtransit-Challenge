@@ -1,23 +1,24 @@
 from nicegui import ui
+from geopy.geocoders import Nominatim
+from datetime import datetime
 
 # import backend logic directly
-from backend_main import get_latest_location, get_location_history
+from backend_main import get_latest_location
 from database import get_session
 
 @ui.page('/')
 def tracker_page():
     device_id = 'arduino_01'
-
+    geolocation = Nominatim(user_agent='arduino_01')
     #UI stuff
     ui.label('GPS Tracker').classes('text-2xl font-bold')
 
     status = ui.label('Loading...')
-    lat_label = ui.label('Latitude: --')
-    lon_label = ui.label('Longitude: --')
+    location_label = ui.label('Location: --')
     time_label = ui.label('Timestamp: --')
 
     #create map
-    m = ui.leaflet(center=(20, 20), zoom=13).classes('w-full h-[600px]')
+    m = ui.leaflet(center=(0, 0), zoom=2).classes('w-full h-[600px]')
     m.tile_layer(
         url_template='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         options={'maxZoom': 19},
@@ -33,12 +34,23 @@ def tracker_page():
 
             lat = latest.lat
             lon = latest.lon
-            timestamp = latest.timestamp or '--'
+            if latest.timestamp:
+                # convert to datetime if it's a string
+                if isinstance(latest.timestamp, str):
+                    dt = datetime.fromisoformat(latest.timestamp)
+                else:
+                    dt = latest.timestamp
+
+                timestamp = dt.strftime("%m/%d/%Y %I:%M:%S %p")
+            else:
+                timestamp = "--"
+
+            #reverse geocoding to get address
+            location = geolocation.reverse(f"{lat}, {lon}")
 
             #update UI labels
             status.set_text('Online')
-            lat_label.set_text(f'Latitude: {lat}')
-            lon_label.set_text(f'Longitude: {lon}')
+            location_label.set_text(f'Location: {location}')
             time_label.set_text(f'Timestamp: {timestamp}')
 
 
@@ -53,6 +65,7 @@ def tracker_page():
             m.marker(latlng=(lat, lon))
 
             m.set_center((lat, lon))
+            m.set_zoom(17)
 
         except Exception as e:
             status.set_text(f'Error: {e}')

@@ -12,8 +12,8 @@ DEVICE_ID = "arduino_01"
 SEND_INTERVAL = 1.0
 NUM_MESSAGES = 10
 
-START_LAT = 50
-START_LON = 50
+START_LAT = 28.144611
+START_LON = -81.845722
 
 #create database
 create_db_and_tables()
