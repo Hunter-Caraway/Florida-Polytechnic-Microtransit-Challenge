@@ -1,13 +1,17 @@
+import os
 from sqlmodel import SQLModel, Session, create_engine
 
 #define the database to use
-DATABASE_URL = "sqlite:///tracker.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable not set")
 
 #config for database
 engine = create_engine(
     DATABASE_URL,
     echo=True,
-    connect_args={"check_same_thread": False}
+    pool_pre_ping=True,
 )
 
 #create the table

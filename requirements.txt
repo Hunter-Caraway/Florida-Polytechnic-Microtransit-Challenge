@@ -4,3 +4,4 @@ nicegui
 geopy
 httpx
 uvicorn
+psycopg2-binary
