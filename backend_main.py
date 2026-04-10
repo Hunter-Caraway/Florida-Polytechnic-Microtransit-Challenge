@@ -60,7 +60,7 @@ def create_location(
 @app.get("/devices/{device_id}/location/latest", response_model=LocationRead)
 def get_latest_location(
     device_id: str,
-    session: Session = Depends(get_session),
+    session: Session = Depends(get_session)
 ):
     statement = (
         select(Location)
@@ -87,5 +87,7 @@ def get_location_history(
         .order_by(Location.timestamp.desc())
         .limit(limit)
     )
+    if statement != None:
+        print("got data")
     records = session.exec(statement).all()
     return records
