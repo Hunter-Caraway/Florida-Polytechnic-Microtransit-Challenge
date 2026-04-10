@@ -61,7 +61,7 @@ void send_location() {
 	sendAT("AT+HTTPINIT");
 	sendAT("AT+HTTPPARA=\"CID\",1");
 
-	sendAT("AT+HTTPPARA=\"URL\",\"http://server_To_send_to/devices/device123/location\""); //wtv our server location is 
+	sendAT("AT+HTTPPARA=\"URL\",\"http://server_To_send_to/devices/arduino_01/location\""); //wtv our server location is
 
 	sendAT("AT+HTTPPARA=\"CONTENT\",\"application/json\"");
 

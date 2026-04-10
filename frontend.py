@@ -1,6 +1,7 @@
 from nicegui import ui
 from geopy.geocoders import Nominatim
 from datetime import datetime
+import os
 
 # import backend logic directly
 from backend_main import get_latest_location
@@ -76,4 +77,7 @@ def tracker_page():
     ui.timer(1, load_data)
 
 print('starting frontend...')
-ui.run(title="GPS Tracker", port=8080)
+ui.run(title="GPS Tracker",
+       host='0.0.0.0',
+       port=int(os.getenv('PORT', 10000)),
+       )
