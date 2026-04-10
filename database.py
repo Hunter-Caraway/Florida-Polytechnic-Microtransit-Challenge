@@ -2,7 +2,7 @@ import os
 from sqlmodel import SQLModel, Session, create_engine
 
 #define the database to use
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv('DATABASE_URL')
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable not set")

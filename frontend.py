@@ -5,7 +5,7 @@ import os
 
 # import backend logic directly
 from backend_main import get_latest_location
-from database import get_session
+from database import get_session, create_db_and_tables
 
 @ui.page('/')
 def tracker_page():
@@ -77,6 +77,7 @@ def tracker_page():
     ui.timer(1, load_data)
 
 print('starting frontend...')
+create_db_and_tables()
 ui.run(title="GPS Tracker",
        host='0.0.0.0',
        port=int(os.getenv('PORT', 10000)),
