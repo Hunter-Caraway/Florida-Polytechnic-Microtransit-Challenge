@@ -1,0 +1,6 @@
+fastapi
+sqlmodel
+nicegui
+geopy
+httpx
+uvicorn
