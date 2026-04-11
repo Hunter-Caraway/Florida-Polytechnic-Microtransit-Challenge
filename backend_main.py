@@ -69,6 +69,9 @@ def get_latest_location(
     )
     record = session.exec(statement).first()
 
+    if statement is not None:
+        print("got data")
+
     if not record:
         raise HTTPException(status_code=404, detail="No location found for this device")
 
@@ -87,7 +90,8 @@ def get_location_history(
         .order_by(Location.timestamp.desc())
         .limit(limit)
     )
-    if statement != None:
+    if statement is not None:
         print("got data")
+
     records = session.exec(statement).all()
     return records
