@@ -74,7 +74,7 @@ def get_latest_location(
 
     if not record:
         raise HTTPException(status_code=404, detail="No location found for this device")
-
+    print(record)
     return record
 
 #get a list of recent points the arduino has been
