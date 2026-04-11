@@ -1,6 +1,7 @@
 from nicegui import ui
 from geopy.geocoders import Nominatim
 from datetime import datetime
+import os
 
 # import backend logic directly
 from backend_main import get_latest_location
@@ -55,7 +56,8 @@ def tracker_page():
 
             # only reverse geocode if the location actually changed
             if last_lat != lat or last_lon != lon:
-                location = geolocation.reverse(f"{lat}, {lon}")
+                #location = geolocation.reverse(f"{lat}, {lon}")
+                location = f'{lat}, {lon}'
                 last_location_text = f'Location: {location}'
                 last_lat = lat
                 last_lon = lon
@@ -85,4 +87,4 @@ def tracker_page():
     ui.timer(10, load_data)
 
 print('starting frontend...')
-ui.run(title="GPS Tracker", port=8080)
+ui.run(title="GPS Tracker", host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
