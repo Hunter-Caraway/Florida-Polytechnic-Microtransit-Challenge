@@ -1,9 +1,9 @@
 from nicegui import ui
 from geopy.geocoders import Nominatim
 from datetime import datetime
+import asyncio
 import os
 
-# import backend logic directly
 from backend_main import get_latest_location
 from database import get_session
 
@@ -12,35 +12,39 @@ def tracker_page():
     device_id = 'arduino_01'
     geolocation = Nominatim(user_agent='arduino_01')
 
-    # UI stuff
+    # UI
     ui.label('GPS Tracker').classes('text-2xl font-bold')
-
     status = ui.label('Loading...')
     location_label = ui.label('Location: --')
     time_label = ui.label('Timestamp: --')
 
-    # create map
+    # Map
     m = ui.leaflet(center=(0, 0), zoom=2).classes('w-full h-[600px]')
     m.tile_layer(
         url_template='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         options={'maxZoom': 19},
     )
 
-    # keep track of current marker + last location used for reverse geocoding
+    # State
     current_marker = None
     last_lat = None
     last_lon = None
     last_location_text = 'Location: --'
 
+    # Blocking DB work moved off event loop
+    def fetch_latest():
+        session = next(get_session())
+        return get_latest_location(device_id, session)
+
+    # Blocking reverse geocoding moved off event loop
+    def reverse_lookup(lat, lon):
+        return geolocation.reverse(f'{lat}, {lon}')
+
     async def load_data():
         nonlocal current_marker, last_lat, last_lon, last_location_text
 
         try:
-            # get DB session
-            session = next(get_session())
-
-            # call backend functions directly
-            latest = get_latest_location(device_id, session)
+            latest = await asyncio.to_thread(fetch_latest)
 
             lat = latest.lat
             lon = latest.lon
@@ -52,29 +56,27 @@ def tracker_page():
                     dt = latest.timestamp
                 timestamp = dt.strftime("%m/%d/%Y %I:%M:%S %p")
             else:
-                timestamp = "--"
+                timestamp = '--'
 
-            # only reverse geocode if the location actually changed
+            # Only reverse geocode if the location actually changed
             if last_lat != lat or last_lon != lon:
-                #location = geolocation.reverse(f"{lat}, {lon}")
-                location = f'{lat}, {lon}'
+                location = await asyncio.to_thread(reverse_lookup, lat, lon)
                 last_location_text = f'Location: {location}'
                 last_lat = lat
                 last_lon = lon
 
-            # update UI labels
+            # Update labels
             status.set_text('Online')
             location_label.set_text(last_location_text)
             time_label.set_text(f'Timestamp: {timestamp}')
 
-            # remove only the old marker
+            # Remove only old marker, keep tiles
             if current_marker is not None:
                 m.remove_layer(current_marker)
 
-            # place new marker
             current_marker = m.marker(latlng=(lat, lon))
 
-            # center on the new point
+            # Center on newest point
             m.set_center((lat, lon))
             m.set_zoom(17)
 
@@ -83,8 +85,12 @@ def tracker_page():
 
     ui.button('Refresh', on_click=load_data)
 
-    # auto-refresh every 10 seconds
+    # Refresh every 10 seconds
     ui.timer(10, load_data)
 
 print('starting frontend...')
-ui.run(title="GPS Tracker", host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+ui.run(
+    title='GPS Tracker',
+    host='0.0.0.0',
+    port=int(os.getenv('PORT', 8080)),
+)
