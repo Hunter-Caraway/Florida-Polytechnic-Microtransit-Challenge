@@ -195,7 +195,5 @@ def tracker_page():
 ui.run_with(
     fastapi_app,
     title="GPS Tracker",
-    host="0.0.0.0",
-    port=int(os.getenv("PORT", 8080)),
     storage_secret=os.getenv("NICEGUI_STORAGE_SECRET", "change-this-secret"),
 )
