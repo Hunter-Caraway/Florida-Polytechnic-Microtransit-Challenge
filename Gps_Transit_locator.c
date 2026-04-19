@@ -177,7 +177,7 @@ bool get_gps_fix(float *lat, float *lon) {
 // -----------------------------
 // HTTPS POST (IMPROVED CHECK)
 // -----------------------------
-bool https_post_location(float lat, float lon) {
+int https_post_location(float lat, float lon) {
     char resp[RX_BUFFER_SIZE];
     char json[128];
     char cmd[256];
@@ -188,68 +188,170 @@ bool https_post_location(float lat, float lon) {
     dtostrf(lon, 0, 6, lon_buf);
 
     snprintf(json, sizeof(json),
-             "{\"lat\":%s,\"lon\":%s,\"source\":\"sim7000\"}",
-             lat_buf, lon_buf);
+        "{\"lat\":%s,\"lon\":%s,\"source\":\"sim7000\"}",
+        lat_buf, lon_buf
+    );
 
+    // -----------------------------
+    // TLS CONFIG
+    // -----------------------------
     sendAT_read("AT+CSSLCFG=\"sslversion\",1,3", resp, sizeof(resp), 3000);
     sendAT_read("AT+SHSSL=1,\"\"", resp, sizeof(resp), 3000);
 
-    sendAT_read("AT+SHCONF=\"URL\",\"https://florida-polytechnic-microtransit.onrender.com\"", resp, sizeof(resp), 3000);
+    // -----------------------------
+    // SERVER CONFIG
+    // -----------------------------
+    sendAT_read(
+        "AT+SHCONF=\"URL\",\"http://florida-polytechnic-microtransit.onrender.com\"",
+        resp, sizeof(resp), 3000
+    );
+
     sendAT_read("AT+SHCONF=\"BODYLEN\",256", resp, sizeof(resp), 3000);
     sendAT_read("AT+SHCONF=\"HEADERLEN\",256", resp, sizeof(resp), 3000);
 
+    // -----------------------------
+    // CONNECT
+    // -----------------------------
     sendAT_read("AT+SHCONN", resp, sizeof(resp), 10000);
 
-    sendAT_read("AT+SHCHEAD", resp, sizeof(resp), 3000);
-    sendAT_read("AT+SHAHEAD=\"Content-Type\",\"application/json\"", resp, sizeof(resp), 3000);
-    sendAT_read("AT+SHAHEAD=\"X_API_KEY\",\"FortniteBattlePassTier27\"", resp, sizeof(resp), 3000);
-
-    snprintf(cmd, sizeof(cmd), "AT+SHBOD=\"%s\",%d", json, (int)strlen(json));
-    sendAT_read(cmd, resp, sizeof(resp), 5000);
-
-    sendAT_read("AT+SHREQ=\"/devices/arduino_01/location\",3", resp, sizeof(resp), 15000);
-
-    // ✅ STRONG SUCCESS CHECK
-    if (!(strstr(resp, ",200") || strstr(resp, ",201"))) {
-        sendAT_read("AT+SHDISC", resp, sizeof(resp), 5000);
-        return false;
+    if (!response_contains(resp, "OK")) {
+        return POST_CONN_FAIL;
     }
 
-    sendAT_read("AT+SHREAD=0,256", resp, sizeof(resp), 5000);
-    sendAT_read("AT+SHDISC", resp, sizeof(resp), 5000);
+    // -----------------------------
+    // HEADERS
+    // -----------------------------
+    sendAT_read("AT+SHCHEAD", resp, sizeof(resp), 3000);
 
-    return true;
+    sendAT_read(
+        "AT+SHAHEAD=\"Content-Type\",\"application/json\"",
+        resp, sizeof(resp), 3000
+    );
+
+    sendAT_read(
+        "AT+SHAHEAD=\"X_API_KEY\",\"FortniteBattlePassTier27\"",
+        resp, sizeof(resp), 3000
+    );
+
+    // -----------------------------
+    // BODY
+    // -----------------------------
+    snprintf(cmd, sizeof(cmd),
+        "AT+SHBOD=\"%s\",%d",
+        json,
+        (int)strlen(json)
+    );
+
+    sendAT_read(cmd, resp, sizeof(resp), 5000);
+
+    if (!response_contains(resp, "OK")) {
+        sendAT_read("AT+SHDISC", resp, sizeof(resp), 3000);
+        return POST_HTTP_FAIL;
+    }
+
+    // -----------------------------
+    // SEND REQUEST
+    // -----------------------------
+    sendAT_read(
+        "AT+SHREQ=\"/devices/arduino_01/location\",3",
+        resp, sizeof(resp), 15000
+    );
+
+    // DEBUG: inspect full response
+    // Expected: +SHREQ: "POST",200,...
+    if (strstr(resp, ",200") || strstr(resp, ",201")) {
+        sendAT_read("AT+SHREAD=0,256", resp, sizeof(resp), 5000);
+        sendAT_read("AT+SHDISC", resp, sizeof(resp), 3000);
+        return POST_OK;
+    }
+
+    // TLS failure detection (common)
+    if (response_contains(resp, "SSL") || response_contains(resp, "TLS")) {
+        sendAT_read("AT+SHDISC", resp, sizeof(resp), 3000);
+        return POST_TLS_FAIL;
+    }
+
+    // Any other failure
+    sendAT_read("AT+SHREAD=0,256", resp, sizeof(resp), 5000);
+    sendAT_read("AT+SHDISC", resp, sizeof(resp), 3000);
+
+    return POST_HTTP_FAIL;
 }
 
 // -----------------------------
 // MAIN
 // -----------------------------
 int main(void) {
-    float lat, lon;
+    float lat = 0.0f, lon = 0.0f;
+
+    uint32_t gps_fix_count = 0;
+    uint32_t post_success_count = 0;
+    uint32_t post_fail_count = 0;
+    uint32_t no_fix_count = 0;
+    uint8_t consecutive_post_failures = 0;
 
     UART_init();
     _delay_ms(3000);
 
     if (!sim7000_basic_check()) {
-        while (1);
+        while (1) {
+            _delay_ms(1000);
+        }
     }
 
     sim7000_init_network();
     sim7000_enable_gps();
 
     while (1) {
-        uint8_t attempts = 0;
+        bool got_fix = false;
 
-        // Wait for GPS fix
-        while (!get_gps_fix(&lat, &lon) && attempts < 10) {
+        // Try for ~20 seconds to get a GPS fix
+        for (uint8_t attempts = 0; attempts < 10; attempts++) {
+            if (get_gps_fix(&lat, &lon)) {
+                got_fix = true;
+                gps_fix_count++;
+                break;
+            }
             _delay_ms(2000);
-            attempts++;
         }
 
-        if (attempts < 10) {
-            https_post_location(lat, lon);
+        if (!got_fix) {
+            no_fix_count++;
+            _delay_ms(5000);
+            continue;
         }
 
-        _delay_ms(5000); // 5 seconds
+        bool posted = false;
+
+        // Retry POST up to 3 times
+        for (uint8_t post_attempt = 0; post_attempt < 3; post_attempt++) {
+            int result = https_post_location(lat, lon);
+
+            if (result == POST_OK) {
+                posted = true;
+                post_success_count++;
+                consecutive_post_failures = 0;
+                break;
+            }
+
+            if (result == POST_CONN_FAIL || result == POST_TLS_FAIL) {
+                // Reinitialize network before retrying harder failures
+                sim7000_init_network();
+            }
+
+            _delay_ms(3000);
+        }
+
+        if (!posted) {
+            post_fail_count++;
+            consecutive_post_failures++;
+
+            if (consecutive_post_failures >= 3) {
+                sim7000_init_network();
+                consecutive_post_failures = 0;
+            }
+        }
+
+        _delay_ms(5000);
     }
 }
