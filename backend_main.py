@@ -35,7 +35,7 @@ def health():
     return {"status": "ok"}
 
 #get input from the arduino
-@app.post("/devices/{device_id}/location", response_model=LocationRead, status_code=201)
+@app.post("/api/devices/{device_id}/location", response_model=LocationRead, status_code=201)
 def create_location(
     device_id: str,
     payload: LocationCreate,
@@ -71,6 +71,8 @@ def get_latest_location(
 
     if statement is not None:
         print("got data")
+    if record is not None:
+        print("got data!")
 
     if not record:
         raise HTTPException(status_code=404, detail="No location found for this device")
