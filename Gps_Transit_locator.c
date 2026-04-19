@@ -300,27 +300,36 @@ int main(void) {
     }
 
     sim7000_init_network();
-    sim7000_enable_gps();
+    //sim7000_enable_gps();
 
-    while (1) {
-        bool got_fix = false;
+   // while (1) {
+     //   bool got_fix = false;
 
         // Try for ~20 seconds to get a GPS fix
-        for (uint8_t attempts = 0; attempts < 10; attempts++) {
-            if (get_gps_fix(&lat, &lon)) {
-                got_fix = true;
-                gps_fix_count++;
-                break;
-            }
-            _delay_ms(2000);
-        }
+//        for (uint8_t attempts = 0; attempts < 10; attempts++) {
+  //          if (get_gps_fix(&lat, &lon)) {
+    //            got_fix = true;
+      //          gps_fix_count++;
+        //        break;
+          //  }
+           // _delay_ms(2000);
+        //}
 
-        if (!got_fix) {
-            no_fix_count++;
-            _delay_ms(5000);
-            continue;
-        }
+        //if (!got_fix) {
+          //  no_fix_count++;
+            //_delay_ms(5000);
+            //continue;
+      //  }
+        while (1) {
+            // 🔥 HARD CODED TEST LOCATION
+            lat = 28.1234;
+            lon = -81.4567;
 
+            int result = https_post_location(lat, lon);
+
+            // Optional: give time between requests
+            _delay_ms(10000);
+        }
         bool posted = false;
 
         // Retry POST up to 3 times
