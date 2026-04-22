@@ -3,17 +3,17 @@ from datetime import datetime
 import asyncio
 import os
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.security import APIKeyHeader
 from geopy.geocoders import Nominatim
 from nicegui import app, ui
 from sqlmodel import Session, select
 
 from database import create_db_and_tables, engine, get_session
-from models import Location, LocationCreate, LocationRead
+from models import Location, LocationRead
 
 
-#fastapi
+# fastapi
 API_KEY_NAME = "X_API_KEY"
 EXPECTED_API_KEY = os.getenv("TRACKER_API_KEY", "FortniteBattlePassTier27")
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
@@ -25,6 +25,38 @@ def verify_api_key(api_key: str = Depends(api_key_header)) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key",
         )
+
+
+def parse_tracker_line(raw: str) -> tuple[datetime, float, float]:
+    raw = raw.strip()
+    parts = raw.split(",")
+
+    if len(parts) != 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Expected plain text body in format: UTC,LAT,LON",
+        )
+
+    utc_raw, lat_raw, lon_raw = parts
+
+    try:
+        timestamp = datetime.strptime(utc_raw, "%Y%m%d%H%M%S.%f")
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid UTC format; expected YYYYMMDDHHMMSS.fff",
+        )
+
+    try:
+        lat = float(lat_raw)
+        lon = float(lon_raw)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Latitude/longitude must be numeric",
+        )
+
+    return timestamp, lat, lon
 
 
 @asynccontextmanager
@@ -53,7 +85,7 @@ def get_latest_location_record(device_id: str, session: Session) -> Location:
     return record
 
 
-#routing
+# routing
 @fastapi_app.get("/health")
 def health():
     return {"status": "ok"}
@@ -64,26 +96,28 @@ def health():
     response_model=LocationRead,
     status_code=201,
 )
-def create_location(
+async def create_location(
     device_id: str,
-    payload: LocationCreate,
+    request: Request,
     session: Session = Depends(get_session),
     _: None = Depends(verify_api_key),
 ):
+    raw_body = (await request.body()).decode("utf-8").strip()
+
+    timestamp, lat, lon = parse_tracker_line(raw_body)
+
     record = Location(
         device_id=device_id,
-        lat=payload.lat,
-        lon=payload.lon,
-        source=payload.source,
+        lat=lat,
+        lon=lon,
+        source="gps",
+        timestamp=timestamp,
     )
-
-    if payload.timestamp is not None:
-        record.timestamp = payload.timestamp
 
     print(
         f"Received from {device_id}: "
-        f"lat={payload.lat}, lon={payload.lon}, "
-        f"timestamp={payload.timestamp}, source={payload.source}"
+        f"lat={lat}, lon={lon}, "
+        f"timestamp={timestamp}, source=gps, raw={raw_body}"
     )
 
     session.add(record)
@@ -121,7 +155,7 @@ def get_location_history(
     return session.exec(statement).all()
 
 
-#frontend
+# frontend
 @ui.page("/")
 def tracker_page():
     device_id = "arduino_01"
@@ -191,7 +225,8 @@ def tracker_page():
     ui.button("Refresh", on_click=load_data)
     ui.timer(10, load_data)
 
-#deploy
+
+# deploy
 ui.run_with(
     fastapi_app,
     title="GPS Tracker",
