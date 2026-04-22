@@ -1,0 +1,183 @@
+Microtransit GPS Tracking System
+
+Arduino + SIM7000A + Python Backend + Web Frontend
+
+    Overview
+
+This project is a complete real-time GPS tracking system designed for microtransit applications. It uses a cellular-enabled microcontroller to collect GPS data and transmit it to a backend server, which then makes the data available for visualization on a web interface.
+
+System Pipeline
+Arduino (SIM7000A)
+   ↓
+Cellular Network (LTE-M / NB-IoT)
+   ↓
+Python Backend (API server)
+   ↓
+Database (location storage)
+   ↓
+Web Frontend (map visualization)
+
+The system continuously gathers GPS coordinates and updates the vehicle’s position in near real-time.
+
+    Hardware Requirements
+Arduino-compatible board (e.g., Arduino Uno)
+SIM7000A LTE/NB-IoT/GPRS module
+Active SIM card with data plan
+GPS antenna (external recommended)
+Power supply (stable 5V / 2A recommended)
+    Software Requirements
+Arduino
+Arduino IDE
+Botletics SIM7000 Library
+SoftwareSerial library (built-in)
+Backend
+Python 3.x
+Flask (or equivalent web framework)
+Frontend
+Web browser (for viewing location data)
+Optional: map library (Leaflet, Google Maps, etc.)
+    System Setup
+1. Hardware Wiring
+SIM7000A	Arduino
+TX	Pin 10
+RX	Pin 11
+GND	GND
+VCC	5V
+
+    Ensure proper power supply — unstable power can cause resets.
+
+2. Arduino Setup
+Install required libraries:
+Botletics SIM7000
+Open the Arduino sketch.
+Configure the following:
+const char APN[] = "Wholesale";
+const char HOST[] = "your-server-url.com";
+const char PATH[] = "/devices/arduino_01/location";
+const char API_KEY[] = "your_api_key";
+Upload the code to the Arduino.
+    How It Works
+Step 1: Initialization
+The Arduino establishes communication with the SIM7000 module.
+GPS is enabled using:
+AT+CGNSPWR=1
+Step 2: GPS Data Collection
+
+The system polls GPS data using:
+
+AT+CGNSINF
+
+Example response:
+
++CGNSINF: 1,1,20260422074935.000,28.146621,-81.822017,...
+
+Where:
+
+1,1 → valid GPS fix
+Latitude and Longitude follow immediately after timestamp
+Step 3: Data Transmission
+
+Once a valid GPS fix is obtained:
+
+The full raw GPS string is sent to the backend via HTTPS POST.
+
+Example payload:
+
++CGNSINF: 1,1,20260422074935.000,28.146621,-81.822017,...
+Step 4: Backend Processing
+
+The Python server:
+
+Receives the raw GPS string
+Parses:
+Timestamp
+Latitude
+Longitude
+Stores the data
+Makes it available to the frontend
+Step 5: Frontend Display
+
+The frontend:
+
+Fetches latest location data
+Displays vehicle position on a map
+Updates in real time
+    Running the Backend
+Install dependencies:
+pip install flask
+Run the server:
+python app.py
+Ensure your endpoint matches the Arduino configuration:
+@app.route('/devices/arduino_01/location', methods=['POST'])
+    Example API Request
+Headers
+POST /devices/arduino_01/location HTTP/1.1
+Host: your-server-url.com
+X_API_KEY: your_api_key
+Content-Type: text/plain
+Body
++CGNSINF: 1,1,20260422074935.000,28.146621,-81.822017,...
+    Testing the System
+Arduino Serial Monitor
+
+Expected output:
+
+MODEM OK
+GPS ON
+RAWFIX
++CGNSINF: 1,1,...
+RSSI 14
+GPRS OK
+POST OK
+Backend Logs
+
+Expected:
+
+Received GPS data
+Parsed lat/lon successfully
+Stored location
+    Troubleshooting
+No GPS Fix
+Move device outdoors
+Ensure antenna is connected
+Wait several minutes for first fix
+GPRS / LTE Failure
+Check SIM card activation
+Verify APN settings
+Ensure network coverage
+No Data on Frontend
+Confirm backend is running
+Check API key
+Verify endpoint URL
+Arduino Resets / Freezes
+Ensure stable power supply
+Reduce memory usage in code
+Avoid unnecessary buffers
+    Design Decisions
+Raw GPS transmission instead of parsed values to:
+reduce Arduino memory usage
+simplify embedded logic
+Server-side parsing for flexibility
+Minimal Arduino processing for stability
+    Future Improvements
+Add JSON formatting for structured data
+Improve error handling and retries
+Add data buffering when offline
+Implement real-time WebSocket updates
+Add multiple device tracking support
+    Contributors
+Team Members:
+Hunter Lynn, Hunter Caraway, Ava Thomas
+
+
+
+
+This project is for educational use. Modify and expand as needed.
+
+    Summary
+
+This system demonstrates a full-stack IoT pipeline:
+
+Embedded device → cellular → backend → frontend
+
+It provides a scalable foundation for real-world vehicle tracking and smart transit systems.
